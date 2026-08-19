@@ -16,6 +16,7 @@
     phone: "",
     phoneCodeHash: "",
     vipUserId: null,
+    accessType: null,
     chats: [],
     currentChatId: null,
     offsetId: 0,
@@ -35,7 +36,7 @@
     [
       "browser-notice", "connection-pill", "connection-label", "access-check-view",
       "access-denied-view", "access-denied-message", "upgrade-vip-button",
-      "retry-vip-button", "login-view",
+      "join-group-button", "retry-vip-button", "login-view",
       "cabinet-view", "phone-form", "code-form", "phone", "code", "password",
       "password-field", "sent-phone", "send-code-button", "login-button",
       "change-phone-button", "toggle-password-button", "step-phone", "step-code",
@@ -127,17 +128,25 @@
     elements["expiry-close-button"].addEventListener("click", closeExpiryDialog);
     elements["expiry-renew-button"].addEventListener("click", renewSession);
     elements["upgrade-vip-button"].addEventListener("click", openVipUpgrade);
-    elements["retry-vip-button"].addEventListener("click", checkVipAccess);
+    elements["join-group-button"].addEventListener("click", openDiscussionGroup);
+    elements["retry-vip-button"].addEventListener("click", checkUserbotAccess);
+  }
+
+  function openTelegramUrl(url) {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && typeof tg.openTelegramLink === "function") {
+      tg.openTelegramLink(url);
+      return;
+    }
+    window.location.assign(url);
   }
 
   function openVipUpgrade() {
-    const upgradeUrl = "https://t.me/flash_pic_helper_bot";
-    const tg = window.Telegram && window.Telegram.WebApp;
-    if (tg && typeof tg.openTelegramLink === "function") {
-      tg.openTelegramLink(upgradeUrl);
-      return;
-    }
-    window.location.assign(upgradeUrl);
+    openTelegramUrl("https://t.me/flash_pic_helper_bot");
+  }
+
+  function openDiscussionGroup() {
+    openTelegramUrl("https://t.me/flash_pic_onlytext");
   }
 
   function miniAppAuthorizationHeaders() {
@@ -247,7 +256,9 @@
     elements["login-view"].classList.add("hidden");
     elements["cabinet-view"].classList.remove("hidden");
     elements["connection-pill"].classList.add("connected");
-    elements["connection-label"].textContent = "已安全連線";
+    elements["connection-label"].textContent = state.accessType === "weekend_member"
+      ? "會員週末福利"
+      : "已安全連線";
     startSessionTimers();
     showChatList();
     loadChats();
@@ -285,7 +296,7 @@
     clearActiveState();
   }
 
-  async function checkVipAccess() {
+  async function checkUserbotAccess() {
     showAccessChecking();
     const headers = miniAppAuthorizationHeaders();
     if (!headers.Authorization) {
@@ -296,25 +307,36 @@
     elements["browser-notice"].classList.add("hidden");
 
     try {
-      const vip = await apiRequest("/api/vip/check", {
+      const access = await apiRequest("/api/access/check", {
         method: "POST",
         headers,
         authToken: null
       });
-      const verifiedVipUserId = String(vip.user_id);
+      const verifiedVipUserId = String(access.user_id);
       const ownsStoredSession = state.vipUserId === verifiedVipUserId;
       if ((state.token || state.pendingToken) && !ownsStoredSession) {
         clearActiveState();
       }
       state.vipUserId = verifiedVipUserId;
+      state.accessType = access.access_type || null;
       persistSession();
-      if (!vip.is_vip || vip.level !== 0) {
+      if (!access.has_access) {
         if (ownsStoredSession) await revokeSessionSilently();
-        const reason = vip.is_vip
-          ? `你的 VIP level 為 ${vip.level ?? "未設定"}；此功能只開放給 level 0。`
-          : "你的 Telegram 帳號目前不是 VIP，無法使用 userbot 功能。";
+        const reasonMessages = {
+          not_weekend: "目前不是香港時間週末；你亦可升級為高級VIP隨時使用。",
+          not_in_group: "你目前不是討論谷會員，請加入討論谷或升級為高級VIP。",
+          banned_or_left: "未能確認有效的討論谷會員資格。",
+          audit_bot_offline: "會員資格服務暫時離線，請稍後重新檢查。",
+          error: "檢查討論谷會員資格時發生錯誤，請稍後重試。"
+        };
+        const reason = reasonMessages[access.reason]
+          || "此功能僅限高級VIP，或香港時間週末的討論谷會員使用。";
         showAccessDenied(reason);
         return;
+      }
+
+      if (access.access_type === "weekend_member") {
+        showToast("已套用討論谷會員週末福利", "success");
       }
 
       if (state.token) showCabinetView();
@@ -833,7 +855,7 @@
     initTelegram();
     bindEvents();
     readStoredSession();
-    checkVipAccess();
+    checkUserbotAccess();
   }
 
   document.addEventListener("DOMContentLoaded", initialize);
