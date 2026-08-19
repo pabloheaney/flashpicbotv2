@@ -494,8 +494,10 @@
         showToast("此帳號已啟用兩步驟驗證", "info");
         return;
       }
-      state.token = state.pendingToken;
-      state.expiresAt = Date.now() + SESSION_DURATION_MS;
+      state.token = typeof data.session_token === "string"
+        ? data.session_token
+        : state.pendingToken;
+      state.expiresAt = Date.now() + (Number(data.expires_at) || SESSION_DURATION_MS);
       clearPendingState();
       elements.password.value = "";
       persistSession();
@@ -578,7 +580,7 @@
     buttons.forEach((button) => { button.disabled = true; });
     try {
       const data = await apiRequest("/auth/renew", { method: "POST" });
-      state.expiresAt = Date.now() + SESSION_DURATION_MS;
+      state.expiresAt = Date.now() + (Number(data.expires_at) || SESSION_DURATION_MS);
       state.expiryWarningShown = false;
       persistSession();
       closeExpiryDialog();
