@@ -32,10 +32,32 @@
     <main>
       <section id="browser-notice" class="notice hidden" role="status">
         <span class="notice-icon">i</span>
-        <p>目前在一般瀏覽器開啟，仍可使用。建議從 Telegram 內開啟以獲得完整 Mini App 體驗。</p>
+        <p>此功能必須從 Telegram Mini App 內開啟，才能識別 VIP 身分。</p>
       </section>
 
-      <section id="login-view" class="view">
+      <section id="access-check-view" class="view access-view">
+        <div class="card access-card">
+          <span class="spinner access-spinner" aria-hidden="true"></span>
+          <p class="eyebrow">VERIFYING ACCESS</p>
+          <h2>正在檢查 VIP 資格</h2>
+          <p>正在檢查 VIP 資格…</p>
+        </div>
+      </section>
+
+      <section id="access-denied-view" class="view access-view hidden">
+        <div class="card access-card denied">
+          <div class="access-icon" aria-hidden="true">◇</div>
+          <p class="eyebrow">ACCESS RESTRICTED</p>
+          <h2>此功能尚未解鎖</h2>
+          <p id="access-denied-message">此功能僅限高級VIP使用，請前往閃圖助手升級為高級VIP。</p>
+          <div class="access-actions">
+            <button id="upgrade-vip-button" class="primary-button" type="button">升級成VIP <span aria-hidden="true">↗</span></button>
+            <button id="retry-vip-button" class="secondary-button" type="button">重新檢查資格</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="login-view" class="view hidden">
         <div class="hero">
           <div class="hero-art" aria-hidden="true">
             <span class="orbit orbit-a"></span>
@@ -94,7 +116,7 @@
 
           <div class="privacy-note">
             <span aria-hidden="true">◇</span>
-            <p>帳號授權由後端建立。使用完畢請按「安全登出」，以撤銷並刪除伺服器端登入工作階段。</p>
+            <p>帳號授權由後端建立。使用完畢請按「登出」，以撤銷並刪除伺服器端登入工作階段。</p>
           </div>
         </div>
       </section>
@@ -111,7 +133,7 @@
           </div>
           <div class="session-actions">
             <button id="renew-button" class="secondary-button compact hidden" type="button">延長 15 分鐘</button>
-            <button id="logout-button" class="ghost-button compact" type="button">安全登出</button>
+            <button id="logout-button" class="ghost-button compact" type="button">登出</button>
           </div>
         </div>
 
