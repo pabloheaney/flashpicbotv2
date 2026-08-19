@@ -15,9 +15,9 @@
     pendingExpiresAt: 0,
     phone: "",
     phoneCodeHash: "",
+    vipUserId: null,
     chats: [],
     currentChatId: null,
-    currentChatName: "",
     offsetId: 0,
     hasMoreMessages: true,
     loadingMessages: false,
@@ -33,13 +33,15 @@
 
   function cacheElements() {
     [
-      "browser-notice", "connection-pill", "connection-label", "login-view",
+      "browser-notice", "connection-pill", "connection-label", "access-check-view",
+      "access-denied-view", "access-denied-message", "upgrade-vip-button",
+      "retry-vip-button", "login-view",
       "cabinet-view", "phone-form", "code-form", "phone", "code", "password",
       "password-field", "sent-phone", "send-code-button", "login-button",
       "change-phone-button", "toggle-password-button", "step-phone", "step-code",
       "step-ready", "session-timer", "renew-button", "logout-button",
       "refresh-chats-button", "chat-search", "chat-list", "chat-list-view",
-      "message-view", "back-to-chats-button", "current-chat-name", "archive-button",
+      "message-view", "back-to-chats-button", "current-chat-name",
       "load-more-button", "message-list", "task-panel", "task-list",
       "dismiss-tasks-button", "expiry-dialog", "expiry-close-button",
       "expiry-renew-button", "toast-region"
@@ -55,6 +57,7 @@
       state.pendingExpiresAt = Number(saved.pendingExpiresAt) || 0;
       state.phone = typeof saved.phone === "string" ? saved.phone : "";
       state.phoneCodeHash = typeof saved.phoneCodeHash === "string" ? saved.phoneCodeHash : "";
+      state.vipUserId = typeof saved.vipUserId === "string" ? saved.vipUserId : null;
     } catch (_) {
       localStorage.removeItem(STORAGE_KEY);
     }
@@ -74,7 +77,8 @@
       pendingToken: state.pendingToken,
       pendingExpiresAt: state.pendingExpiresAt,
       phone: state.phone,
-      phoneCodeHash: state.phoneCodeHash
+      phoneCodeHash: state.phoneCodeHash,
+      vipUserId: state.vipUserId
     }));
   }
 
@@ -118,11 +122,29 @@
     elements["refresh-chats-button"].addEventListener("click", loadChats);
     elements["chat-search"].addEventListener("input", renderChats);
     elements["back-to-chats-button"].addEventListener("click", showChatList);
-    elements["archive-button"].addEventListener("click", scanArchives);
     elements["load-more-button"].addEventListener("click", () => loadMessages(false));
     elements["dismiss-tasks-button"].addEventListener("click", dismissFinishedTasks);
     elements["expiry-close-button"].addEventListener("click", closeExpiryDialog);
     elements["expiry-renew-button"].addEventListener("click", renewSession);
+    elements["upgrade-vip-button"].addEventListener("click", openVipUpgrade);
+    elements["retry-vip-button"].addEventListener("click", checkVipAccess);
+  }
+
+  function openVipUpgrade() {
+    const upgradeUrl = "https://t.me/flash_pic_helper_bot?startapp";
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && typeof tg.openTelegramLink === "function") {
+      tg.openTelegramLink(upgradeUrl);
+      return;
+    }
+    window.location.assign(upgradeUrl);
+  }
+
+  function miniAppAuthorizationHeaders() {
+    const initData = window.Telegram && window.Telegram.WebApp
+      ? window.Telegram.WebApp.initData
+      : "";
+    return initData ? { Authorization: `tma ${initData}` } : {};
   }
 
   async function apiRequest(path, options = {}) {
@@ -198,6 +220,8 @@
   }
 
   function showLoginView(mode = "phone") {
+    elements["access-check-view"].classList.add("hidden");
+    elements["access-denied-view"].classList.add("hidden");
     elements["login-view"].classList.remove("hidden");
     elements["cabinet-view"].classList.add("hidden");
     elements["connection-pill"].classList.remove("connected");
@@ -217,6 +241,8 @@
   }
 
   function showCabinetView() {
+    elements["access-check-view"].classList.add("hidden");
+    elements["access-denied-view"].classList.add("hidden");
     setStep("step-ready");
     elements["login-view"].classList.add("hidden");
     elements["cabinet-view"].classList.remove("hidden");
@@ -225,6 +251,78 @@
     startSessionTimers();
     showChatList();
     loadChats();
+  }
+
+  function showAccessChecking() {
+    elements["access-check-view"].classList.remove("hidden");
+    elements["access-denied-view"].classList.add("hidden");
+    elements["login-view"].classList.add("hidden");
+    elements["cabinet-view"].classList.add("hidden");
+    elements["connection-pill"].classList.remove("connected");
+    elements["connection-label"].textContent = "驗證資格中";
+  }
+
+  function showAccessDenied(message) {
+    stopSessionTimers();
+    elements["access-check-view"].classList.add("hidden");
+    elements["access-denied-view"].classList.remove("hidden");
+    elements["login-view"].classList.add("hidden");
+    elements["cabinet-view"].classList.add("hidden");
+    elements["access-denied-message"].textContent = message;
+    elements["connection-pill"].classList.remove("connected");
+    elements["connection-label"].textContent = "未獲授權";
+  }
+
+  async function revokeSessionSilently() {
+    const token = state.token || state.pendingToken;
+    if (token) {
+      try {
+        await apiRequest("/auth/logout", { method: "POST", authToken: token });
+      } catch (_) {
+        // An expired or already revoked server session needs no further action.
+      }
+    }
+    clearActiveState();
+  }
+
+  async function checkVipAccess() {
+    showAccessChecking();
+    const headers = miniAppAuthorizationHeaders();
+    if (!headers.Authorization) {
+      elements["browser-notice"].classList.remove("hidden");
+      showAccessDenied("請從 Telegram 內的 Mini App 按鈕開啟此頁面。");
+      return;
+    }
+    elements["browser-notice"].classList.add("hidden");
+
+    try {
+      const vip = await apiRequest("/api/vip/check", {
+        method: "POST",
+        headers,
+        authToken: null
+      });
+      const verifiedVipUserId = String(vip.user_id);
+      const ownsStoredSession = state.vipUserId === verifiedVipUserId;
+      if ((state.token || state.pendingToken) && !ownsStoredSession) {
+        clearActiveState();
+      }
+      state.vipUserId = verifiedVipUserId;
+      persistSession();
+      if (!vip.is_vip || vip.level !== 0) {
+        if (ownsStoredSession) await revokeSessionSilently();
+        const reason = vip.is_vip
+          ? `你的 VIP level 為 ${vip.level ?? "未設定"}；此功能只開放給 level 0。`
+          : "你的 Telegram 帳號目前不是 VIP，無法使用 userbot 功能。";
+        showAccessDenied(reason);
+        return;
+      }
+
+      if (state.token) showCabinetView();
+      else if (state.pendingToken) showLoginView("code");
+      else showLoginView("phone");
+    } catch (error) {
+      showAccessDenied(errorMessage(error, "暫時無法檢查 VIP 資格，請稍後重試。"));
+    }
   }
 
   async function sendCode(event) {
@@ -242,6 +340,7 @@
       const data = await apiRequest("/auth/send_code", {
         method: "POST",
         body: JSON.stringify({ phone }),
+        headers: miniAppAuthorizationHeaders(),
         authToken: null
       });
       state.phone = phone;
@@ -262,6 +361,10 @@
         showToast(detail.message || "已恢復先前的登入", "success");
         showCabinetView();
       } else {
+        if (error.status === 403) {
+          showAccessDenied(error.message);
+          return;
+        }
         showToast(errorMessage(error, "發送驗證碼失敗"), "error");
       }
     } finally {
@@ -399,7 +502,12 @@
       updateCountdown();
       showToast(data.message || "連線已延長 15 分鐘", "success");
     } catch (error) {
-      handleSessionError(error, "續期失敗，請重新登入");
+      if (error.status === 403) {
+        await revokeSessionSilently();
+        showAccessDenied(error.message);
+      } else {
+        handleSessionError(error, "續期失敗，請重新登入");
+      }
     } finally {
       buttons.forEach((button) => { button.disabled = false; });
     }
@@ -445,7 +553,11 @@
       state.chats = Array.isArray(data.chats) ? data.chats : [];
       renderChats();
     } catch (error) {
-      if (!handleSessionError(error, "讀取對話失敗")) {
+      if (error.status === 403) {
+        clearActiveState();
+        showLoginView("phone");
+        showToast("請重新登入以更新 VIP 授權", "error");
+      } else if (!handleSessionError(error, "讀取對話失敗")) {
         renderError(elements["chat-list"], "無法載入對話，請稍後重試。", loadChats);
       }
     } finally {
@@ -507,7 +619,6 @@
 
   function openChat(chatId, chatName) {
     state.currentChatId = chatId;
-    state.currentChatName = chatName;
     state.offsetId = 0;
     state.hasMoreMessages = true;
     elements["current-chat-name"].textContent = chatName;
@@ -618,23 +729,6 @@
     }
   }
 
-  async function scanArchives() {
-    if (!state.currentChatId) return;
-    if (!window.confirm(`掃描「${state.currentChatName}」最近 200 則訊息中的新壓縮檔？`)) return;
-    setButtonLoading(elements["archive-button"], true, "建立任務…");
-    try {
-      const data = await apiRequest(`/api/forward_all_archives/${encodeURIComponent(state.currentChatId)}?limit=200`, { method: "POST" });
-      state.tasks[data.task_id] = { task_id: data.task_id, status: "processing", message: "正在掃描最近 200 則訊息…" };
-      renderTasks();
-      showToast("已開始掃描壓縮檔", "success");
-      pollTasks();
-    } catch (error) {
-      handleSessionError(error, "無法建立掃描任務");
-    } finally {
-      setButtonLoading(elements["archive-button"], false);
-    }
-  }
-
   async function pollTasks() {
     if (!state.token) return;
     try {
@@ -739,9 +833,7 @@
     initTelegram();
     bindEvents();
     readStoredSession();
-    if (state.token) showCabinetView();
-    else if (state.pendingToken) showLoginView("code");
-    else showLoginView("phone");
+    checkVipAccess();
   }
 
   document.addEventListener("DOMContentLoaded", initialize);
