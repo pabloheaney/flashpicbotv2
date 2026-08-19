@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1726">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="登入 Telegram，將私人對話中的媒體轉存到收藏的訊息。">
+  <title>私訊媒體助手</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 3.2 20 7.7v8.6L12 20.8 4 16.3V7.7L12 3.2Z"/><path d="m8.2 12 2.4 2.4 5.2-5.2"/></svg>
+      </div>
+      <div class="brand-copy">
+        <p class="eyebrow">TELEGRAM MINI APP</p>
+        <h1>私訊媒體助手</h1>
+      </div>
+      <div class="connection-pill" id="connection-pill">
+        <span class="status-dot"></span>
+        <span id="connection-label">尚未登入</span>
+      </div>
+    </header>
+
+    <main>
+      <section id="browser-notice" class="notice hidden" role="status">
+        <span class="notice-icon">i</span>
+        <p>目前在一般瀏覽器開啟，仍可使用。建議從 Telegram 內開啟以獲得完整 Mini App 體驗。</p>
+      </section>
+
+      <section id="login-view" class="view">
+        <div class="hero">
+          <div class="hero-art" aria-hidden="true">
+            <span class="orbit orbit-a"></span>
+            <span class="orbit orbit-b"></span>
+            <svg viewBox="0 0 48 48"><path d="M39.7 8.8 6.9 21.5c-2.2.9-2.2 2.1-.4 2.7l8.4 2.6 3.2 10c.4 1.2.2 1.7 1.5 1.7 1 0 1.5-.5 2.1-1l4.1-4 8.5 6.3c1.6.9 2.7.4 3.1-1.5l5.6-26.5c.6-2.3-.9-3.4-3.3-3Z"/><path class="paper-line" d="m15.2 26.6 20.1-12.7c1-.6 1.9-.3 1.1.4L19.8 29.2l-.7 7.4"/></svg>
+          </div>
+          <p class="eyebrow">YOUR MEDIA, WITHIN REACH</p>
+          <h2>把私人對話媒體<br><span>存回自己的 Telegram</span></h2>
+          <p class="hero-description">登入個人帳號，瀏覽私人對話並將需要的相片、影片或檔案傳送到「收藏的訊息」。</p>
+        </div>
+
+        <div class="card auth-card">
+          <div class="stepper" aria-label="登入進度">
+            <div class="step active" id="step-phone"><span>1</span><small>電話</small></div>
+            <div class="step-line"></div>
+            <div class="step" id="step-code"><span>2</span><small>驗證</small></div>
+            <div class="step-line"></div>
+            <div class="step" id="step-ready"><span>3</span><small>完成</small></div>
+          </div>
+
+          <form id="phone-form" novalidate>
+            <div class="section-heading">
+              <h3>登入 Telegram</h3>
+              <p>驗證碼會由 Telegram 發送到你的帳號。</p>
+            </div>
+            <label class="field-label" for="phone">國際電話號碼</label>
+            <div class="input-wrap">
+              <span class="input-icon" aria-hidden="true">＋</span>
+              <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="852 1234 5678" aria-describedby="phone-help" required>
+            </div>
+            <p id="phone-help" class="field-help">請包含國碼，例如香港號碼：+85212345678</p>
+            <button class="primary-button" id="send-code-button" type="submit">
+              <span>取得驗證碼</span><span aria-hidden="true">→</span>
+            </button>
+          </form>
+
+          <form id="code-form" class="hidden" novalidate>
+            <div class="section-heading">
+              <button class="text-button back-button" id="change-phone-button" type="button">← 更改電話號碼</button>
+              <h3>輸入驗證碼</h3>
+              <p>已發送到 <strong id="sent-phone"></strong></p>
+            </div>
+            <label class="field-label" for="code">Telegram 驗證碼</label>
+            <input class="code-input" id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="•••••" required>
+            <div id="password-field" class="hidden">
+              <label class="field-label" for="password">兩步驟驗證密碼</label>
+              <div class="input-wrap">
+                <input id="password" name="password" type="password" autocomplete="current-password" placeholder="輸入 2FA 密碼">
+                <button class="input-action" id="toggle-password-button" type="button" aria-label="顯示密碼">顯示</button>
+              </div>
+            </div>
+            <button class="primary-button" id="login-button" type="submit">
+              <span>登入並連線</span><span aria-hidden="true">→</span>
+            </button>
+          </form>
+
+          <div class="privacy-note">
+            <span aria-hidden="true">◇</span>
+            <p>帳號授權由後端建立。使用完畢請按「安全登出」，以撤銷並刪除伺服器端登入工作階段。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="cabinet-view" class="view hidden">
+        <div class="session-card">
+          <div>
+            <p class="eyebrow">SECURE SESSION</p>
+            <div class="session-time-row">
+              <span class="live-dot"></span>
+              <strong id="session-timer">15:00</strong>
+              <span>後自動登出</span>
+            </div>
+          </div>
+          <div class="session-actions">
+            <button id="renew-button" class="secondary-button compact hidden" type="button">延長 15 分鐘</button>
+            <button id="logout-button" class="ghost-button compact" type="button">安全登出</button>
+          </div>
+        </div>
+
+        <section id="chat-list-view">
+          <div class="content-heading">
+            <div>
+              <p class="eyebrow">PRIVATE CHATS</p>
+              <h2>選擇私人對話</h2>
+            </div>
+            <button id="refresh-chats-button" class="icon-button" type="button" aria-label="重新載入對話" title="重新載入">↻</button>
+          </div>
+          <div class="search-wrap">
+            <span aria-hidden="true">⌕</span>
+            <input id="chat-search" type="search" placeholder="搜尋對話名稱" autocomplete="off">
+          </div>
+          <div id="chat-list" class="chat-list" aria-live="polite"></div>
+        </section>
+
+        <section id="message-view" class="hidden">
+          <div class="message-toolbar">
+            <button id="back-to-chats-button" class="icon-button" type="button" aria-label="返回對話列表">←</button>
+            <div class="message-chat-title">
+              <p>私人對話</p>
+              <h2 id="current-chat-name">對話</h2>
+            </div>
+            <button id="archive-button" class="secondary-button compact" type="button">掃描壓縮檔</button>
+          </div>
+          <div class="archive-hint">可掃描最近 200 則訊息中的新壓縮檔；單一媒體請使用訊息下方的轉存按鈕。</div>
+          <button id="load-more-button" class="load-more-button hidden" type="button">載入更早訊息</button>
+          <div id="message-list" class="message-list" aria-live="polite"></div>
+        </section>
+
+        <section id="task-panel" class="task-panel hidden" aria-live="polite">
+          <div class="task-panel-heading">
+            <h3>處理進度</h3>
+            <button id="dismiss-tasks-button" class="text-button" type="button">隱藏已完成</button>
+          </div>
+          <div id="task-list" class="task-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <footer>
+      <span>僅支援私人用戶對話</span><span>•</span><span>單一檔案上限 200 MB</span>
+    </footer>
+  </div>
+
+  <div id="expiry-dialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="expiry-title">
+    <div class="dialog-card">
+      <div class="dialog-icon">⏱</div>
+      <h2 id="expiry-title">連線即將到期</h2>
+      <p>為保障帳號安全，工作階段將於兩分鐘內結束。需要更多時間嗎？</p>
+      <div class="dialog-actions">
+        <button id="expiry-close-button" class="ghost-button" type="button">稍後</button>
+        <button id="expiry-renew-button" class="primary-button" type="button">延長 15 分鐘</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-region" class="toast-region" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/userbot.js"></script>
+</body>
+</html>
