@@ -7,6 +7,9 @@
   const PENDING_LOGIN_DURATION_MS = config.PENDING_LOGIN_DURATION_MS || 10 * 60 * 1000;
   const TASK_POLL_INTERVAL_MS = config.TASK_POLL_INTERVAL_MS || 2500;
   const STORAGE_KEY = "telegram-media-cabinet-session-v1";
+  const WEBVIEW_BACKGROUND_COLOR = "#07111f";
+  const WEBVIEW_HEADER_COLOR = "#0d1726";
+  const ACCESS_RECHECK_INTERVAL_MS = 10 * 1000;
 
   const state = {
     token: null,
@@ -26,7 +29,13 @@
     hiddenTaskIds: new Set(),
     countdownTimer: null,
     taskTimer: null,
-    expiryWarningShown: false
+    expiryWarningShown: false,
+    initialized: false,
+    initialAccessResolved: false,
+    accessCheckPromise: null,
+    lastAccessCheckAt: 0,
+    telegram: null,
+    telegramReadySignaled: false
   };
 
   const elements = {};
@@ -104,13 +113,32 @@
     const tg = window.Telegram && window.Telegram.WebApp;
     if (!tg) {
       elements["browser-notice"].classList.remove("hidden");
-      return;
+      return null;
     }
-    tg.ready();
+    state.telegram = tg;
+    if (typeof tg.setHeaderColor === "function") tg.setHeaderColor(WEBVIEW_HEADER_COLOR);
+    if (typeof tg.setBackgroundColor === "function") tg.setBackgroundColor(WEBVIEW_BACKGROUND_COLOR);
+    if (typeof tg.setBottomBarColor === "function") tg.setBottomBarColor(WEBVIEW_BACKGROUND_COLOR);
     tg.expand();
-    if (typeof tg.setHeaderColor === "function") tg.setHeaderColor("#0d1726");
-    if (typeof tg.setBackgroundColor === "function") tg.setBackgroundColor("#07111f");
+    if (typeof tg.onEvent === "function") {
+      tg.onEvent("activated", handleAppActivated);
+      tg.onEvent("deactivated", handlePageHide);
+    }
     if (!tg.initData) elements["browser-notice"].classList.remove("hidden");
+    return tg;
+  }
+
+  function signalTelegramReadyAfterPaint() {
+    const tg = state.telegram;
+    if (!tg || state.telegramReadySignaled) return;
+    const schedule = window.requestAnimationFrame
+      ? window.requestAnimationFrame.bind(window)
+      : (callback) => window.setTimeout(callback, 0);
+    schedule(() => {
+      if (state.telegramReadySignaled) return;
+      state.telegramReadySignaled = true;
+      tg.ready();
+    });
   }
 
   function bindEvents() {
@@ -129,7 +157,9 @@
     elements["expiry-renew-button"].addEventListener("click", renewSession);
     elements["upgrade-vip-button"].addEventListener("click", openVipUpgrade);
     elements["join-group-button"].addEventListener("click", openDiscussionGroup);
-    elements["retry-vip-button"].addEventListener("click", checkUserbotAccess);
+    elements["retry-vip-button"].addEventListener("click", () => {
+      checkUserbotAccess({ blocking: true, force: true });
+    });
   }
 
   function openTelegramUrl(url) {
@@ -228,10 +258,20 @@
     });
   }
 
+  function revealView(element) {
+    element.classList.remove("view-enter");
+    element.classList.remove("hidden");
+    if (state.initialAccessResolved) {
+      // Restart entrance motion only for navigation after initial page hydration.
+      void element.offsetWidth;
+      element.classList.add("view-enter");
+    }
+  }
+
   function showLoginView(mode = "phone") {
     elements["access-check-view"].classList.add("hidden");
     elements["access-denied-view"].classList.add("hidden");
-    elements["login-view"].classList.remove("hidden");
+    revealView(elements["login-view"]);
     elements["cabinet-view"].classList.add("hidden");
     elements["connection-pill"].classList.remove("connected");
     elements["connection-label"].textContent = "尚未登入";
@@ -254,7 +294,7 @@
     elements["access-denied-view"].classList.add("hidden");
     setStep("step-ready");
     elements["login-view"].classList.add("hidden");
-    elements["cabinet-view"].classList.remove("hidden");
+    revealView(elements["cabinet-view"]);
     elements["connection-pill"].classList.add("connected");
     elements["connection-label"].textContent = state.accessType === "weekend_member"
       ? "會員週末福利"
@@ -265,7 +305,7 @@
   }
 
   function showAccessChecking() {
-    elements["access-check-view"].classList.remove("hidden");
+    revealView(elements["access-check-view"]);
     elements["access-denied-view"].classList.add("hidden");
     elements["login-view"].classList.add("hidden");
     elements["cabinet-view"].classList.add("hidden");
@@ -276,7 +316,7 @@
   function showAccessDenied(message) {
     stopSessionTimers();
     elements["access-check-view"].classList.add("hidden");
-    elements["access-denied-view"].classList.remove("hidden");
+    revealView(elements["access-denied-view"]);
     elements["login-view"].classList.add("hidden");
     elements["cabinet-view"].classList.add("hidden");
     elements["access-denied-message"].textContent = message;
@@ -296,8 +336,8 @@
     clearActiveState();
   }
 
-  async function checkUserbotAccess() {
-    showAccessChecking();
+  async function runUserbotAccessCheck(blocking) {
+    if (blocking) showAccessChecking();
     const headers = miniAppAuthorizationHeaders();
     if (!headers.Authorization) {
       elements["browser-notice"].classList.remove("hidden");
@@ -339,12 +379,33 @@
         showToast("已套用討論谷會員週末福利", "success");
       }
 
-      if (state.token) showCabinetView();
-      else if (state.pendingToken) showLoginView("code");
-      else showLoginView("phone");
+      if (state.token) {
+        if (elements["cabinet-view"].classList.contains("hidden")) showCabinetView();
+        else updateCountdown();
+      } else if (state.pendingToken) {
+        showLoginView("code");
+      } else {
+        showLoginView("phone");
+      }
     } catch (error) {
       showAccessDenied(errorMessage(error, "暫時無法檢查 VIP 資格，請稍後重試。"));
     }
+  }
+
+  function checkUserbotAccess({ blocking = true, force = false } = {}) {
+    if (state.accessCheckPromise) return state.accessCheckPromise;
+    if (!force && Date.now() - state.lastAccessCheckAt < ACCESS_RECHECK_INTERVAL_MS) {
+      return Promise.resolve();
+    }
+
+    const request = runUserbotAccessCheck(blocking);
+    state.accessCheckPromise = request;
+    request.finally(() => {
+      state.lastAccessCheckAt = Date.now();
+      state.initialAccessResolved = true;
+      if (state.accessCheckPromise === request) state.accessCheckPromise = null;
+    });
+    return request;
   }
 
   async function sendCode(event) {
@@ -850,13 +911,46 @@
     container.appendChild(box);
   }
 
-  function initialize() {
-    cacheElements();
-    initTelegram();
-    bindEvents();
+  function handleAppActivated() {
+    if (!state.initialized || !state.initialAccessResolved) return;
     readStoredSession();
-    checkUserbotAccess();
+    if (state.token && !elements["cabinet-view"].classList.contains("hidden")) {
+      startSessionTimers();
+    } else {
+      stopSessionTimers();
+    }
+    checkUserbotAccess({ blocking: false, force: false });
   }
 
-  document.addEventListener("DOMContentLoaded", initialize);
+  function handlePageHide() {
+    stopSessionTimers();
+  }
+
+  function bindLifecycleEvents() {
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handleAppActivated);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") handleAppActivated();
+      else handlePageHide();
+    });
+  }
+
+  function initialize() {
+    if (state.initialized) return;
+    state.initialized = true;
+    cacheElements();
+    bindEvents();
+    readStoredSession();
+    initTelegram();
+    bindLifecycleEvents();
+    showAccessChecking();
+    checkUserbotAccess({ blocking: false, force: true });
+    signalTelegramReadyAfterPaint();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialize, { once: true });
+  } else {
+    initialize();
+  }
 })();

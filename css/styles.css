@@ -131,7 +131,7 @@ button:focus-visible, input:focus-visible {
 .notice p { margin: 0; }
 .notice-icon { display: grid; flex: 0 0 auto; width: 19px; height: 19px; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; font-weight: 800; }
 
-.view { animation: view-in .38s ease both; }
+.view.view-enter { animation: view-in .38s ease both; }
 @keyframes view-in { from { transform: translateY(7px); opacity: 0; } }
 
 .access-view { display: grid; min-height: min(66vh, 540px); place-items: center; }

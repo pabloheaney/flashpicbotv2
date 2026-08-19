@@ -7,8 +7,13 @@
   <meta name="color-scheme" content="dark">
   <meta name="description" content="登入 Telegram，將私人對話中的媒體轉存到收藏的訊息。">
   <title>私訊媒體助手</title>
+  <style>
+    html, body { min-height: 100%; margin: 0; background-color: #07111f; }
+  </style>
   <link rel="stylesheet" href="css/styles.css">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script defer src="js/config.js"></script>
+  <script defer src="js/userbot.js"></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -198,7 +203,5 @@
 
   <div id="toast-region" class="toast-region" aria-live="assertive" aria-atomic="true"></div>
 
-  <script src="js/config.js"></script>
-  <script src="js/userbot.js"></script>
 </body>
 </html>
