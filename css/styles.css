@@ -141,8 +141,10 @@ button:focus-visible, input:focus-visible {
 .access-spinner { display: block; width: 36px; height: 36px; margin: 0 auto 22px; }
 .access-icon { display: grid; width: 58px; height: 58px; margin: 0 auto 20px; place-items: center; border: 1px solid rgba(255,201,111,.25); border-radius: 19px; color: var(--warning); background: rgba(255,201,111,.08); font-size: 27px; }
 .access-card.denied .eyebrow { color: var(--warning); }
+.weekend-benefit { display: grid; gap: 4px; margin-top: 17px; padding: 11px 12px; border: 1px solid rgba(83,210,212,.2); border-radius: 12px; color: var(--muted); background: rgba(83,210,212,.06); font-size: 10px; line-height: 1.5; }
+.weekend-benefit strong { color: var(--accent); font-size: 11px; }
 .access-actions { display: grid; gap: 9px; margin-top: 23px; }
-.access-actions .primary-button, .access-actions .secondary-button { width: 100%; margin: 0; }
+.access-actions .primary-button, .access-actions .secondary-button, .access-actions .ghost-button { width: 100%; margin: 0; }
 
 .hero { padding: 10px 4px 26px; text-align: center; }
 .hero-art { position: relative; display: grid; width: 106px; height: 106px; margin: 0 auto 15px; place-items: center; }
