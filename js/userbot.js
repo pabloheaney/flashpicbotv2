@@ -131,7 +131,7 @@
   }
 
   function openVipUpgrade() {
-    const upgradeUrl = "https://t.me/flash_pic_helper_bot?startapp";
+    const upgradeUrl = "https://t.me/flash_pic_helper_bot";
     const tg = window.Telegram && window.Telegram.WebApp;
     if (tg && typeof tg.openTelegramLink === "function") {
       tg.openTelegramLink(upgradeUrl);
